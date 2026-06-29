@@ -1,0 +1,87 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: personaai-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-personaai}:${POSTGRES_PASSWORD:-personaai_password}@postgres:5432/${POSTGRES_DB:-personaai}
+      LOG_FILE: /app/logs/personaai.log
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - personaai-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: personaai-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-personaai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-personaai_password}
+      POSTGRES_DB: ${POSTGRES_DB:-personaai}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-personaai} -d ${POSTGRES_DB:-personaai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - personaai-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: personaai-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@personaai.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-personaai_admin_password}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1/misc/ping')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - personaai-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: personaai-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - personaai-network
+
+volumes:
+  postgres-data:
+  pgadmin-data:
+  ollama-data:
+
+networks:
+  personaai-network:
+    driver: bridge
