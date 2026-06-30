@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PersonaAI</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">PersonaAI</div>
+    <div class="status-stack">
+      <div id="connStatus" class="conn-status conn-unknown">checking...</div>
+      <div id="syncMeta" class="sync-meta">Sync state unavailable</div>
+    </div>
+  </header>
+
+  <section id="signedOutView" class="view hidden">
+    <p class="empty-copy">Connect your Gmail account to get AI summaries of your inbox.</p>
+    <button id="signInBtn" class="primary-btn">Sign in with Google</button>
+  </section>
+
+  <section id="signedInView" class="view hidden">
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="Search mail..." />
+      <button id="refreshBtn" title="Refresh inbox">⟳</button>
+    </div>
+
+    <div id="reconnectBanner" class="banner hidden">
+      Gmail connection needs attention.
+      <button id="reconnectBtn">Reconnect</button>
+    </div>
+
+    <div id="offlineBanner" class="banner offline hidden">You're offline - showing cached mail.</div>
+
+    <ul id="messageList" class="message-list"></ul>
+    <div id="emptyState" class="empty-copy hidden">No messages yet.</div>
+  </section>
+
+  <section id="chatDock" class="chat-dock hidden">
+    <div id="chatLog" class="chat-log"></div>
+    <div class="chat-input-row">
+      <input id="chatInput" type="text" placeholder="Ask PersonaAI to summarize..." />
+      <button id="chatSendBtn">Send</button>
+    </div>
+  </section>
+
+  <script src="lib/bridge.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+</html>
