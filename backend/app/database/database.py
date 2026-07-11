@@ -12,6 +12,11 @@ def create_engine(settings: Settings) -> AsyncEngine:
     connect_args: dict[str, Any] = {
         "timeout": settings.database_connect_timeout_seconds,
     }
+    
+    # Cloud PostgreSQL hosts like Neon require SSL
+    if "localhost" not in settings.database_url and "127.0.0.1" not in settings.database_url:
+        connect_args["ssl"] = True
+
     return create_async_engine(
         settings.database_url,
         connect_args=connect_args,
