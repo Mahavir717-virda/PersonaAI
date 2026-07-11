@@ -158,7 +158,10 @@ class GmailConnector(BaseConnector):
 
     def sync(self, cursor: str | None = None) -> AsyncIterator[dict[str, Any]]:
         async def iterator() -> AsyncIterator[dict[str, Any]]:
-            credentials = {"token": self.credentials.get("access_token")}
+            credentials = {
+                "token": self.credentials.get("access_token"),
+                "settings": self.credentials.get("settings") or {},
+            }
             self.failed_sync_ids.clear()
 
             if cursor:

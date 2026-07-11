@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.database.session import close_database_connections
 from app.startup.state import initialize_runtime_state
+from app.services.ai_queue import start_ai_worker, stop_ai_worker
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown events."""
     initialize_runtime_state(app)
+    
+    # Start the priority AI background worker
+    await start_ai_worker()
+    
     logger.info("Initializing local AI Summary model...")
     try:
         from app.brain.summary.loader import SummaryModelLoader
@@ -36,5 +41,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        await stop_ai_worker()
         await close_database_connections()
         logger.info("%s shutdown complete", app.title)

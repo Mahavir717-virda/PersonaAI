@@ -114,6 +114,60 @@ async function toggleSummary(li, msg) {
       `;
     };
 
+    // Build attachment cards
+    let attachmentCards = "";
+    const attachments = msg.attachments || [];
+    if (attachments.length > 0) {
+      const cards = attachments.map(att => {
+        const icon = getAttachmentIcon(att.name, att.content_type);
+        const sizeStr = att.size_bytes ? formatFileSize(att.size_bytes) : "";
+        const statusBadge = att.processing_status === "completed"
+          ? `<span class="att-badge att-done">✓ Analyzed</span>`
+          : att.processing_status === "skipped"
+          ? `<button class="att-analyze-btn" data-att-id="${att.id}">🔍 Analyze</button>`
+          : att.processing_status === "processing"
+          ? `<span class="att-badge att-processing">⏳ Processing</span>`
+          : `<span class="att-badge att-pending">⏳ Pending</span>`;
+
+        let summaryBlock = "";
+        if (att.attachment_summary) {
+          try {
+            const parsed = JSON.parse(att.attachment_summary);
+            const points = (parsed.key_points || []).map(p => `<li>${escapeHtml(p)}</li>`).join("");
+            summaryBlock = `
+              <div class="att-summary-content">
+                <p>${escapeHtml(parsed.summary || "")}</p>
+                ${points ? `<ul>${points}</ul>` : ""}
+              </div>
+            `;
+          } catch {
+            summaryBlock = `<div class="att-summary-content"><p>${escapeHtml(att.attachment_summary)}</p></div>`;
+          }
+        }
+
+        return `
+          <div class="att-card">
+            <div class="att-header">
+              <span class="att-icon">${icon}</span>
+              <div class="att-info">
+                <span class="att-name">${escapeHtml(att.name)}</span>
+                <span class="att-size">${sizeStr}</span>
+              </div>
+              ${statusBadge}
+            </div>
+            ${summaryBlock}
+          </div>
+        `;
+      }).join("");
+
+      attachmentCards = `
+        <div class="att-section">
+          <div class="att-section-title">📎 Attachments (${attachments.length})</div>
+          ${cards}
+        </div>
+      `;
+    }
+
     box.innerHTML = `
       <div class="structured-summary-card">
         ${tldr}
@@ -126,12 +180,64 @@ async function toggleSummary(li, msg) {
         ${buildList("Risks Identified", sum.risks)}
         ${buildList("Follow-ups", sum.follow_ups)}
         ${buildList("Questions Asked", sum.questions)}
+        ${attachmentCards}
       </div>
     `;
     box.dataset.loaded = "true";
+
+    // Wire up analyze buttons for skipped attachments
+    box.querySelectorAll(".att-analyze-btn").forEach(btn => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const attId = btn.dataset.attId;
+        btn.textContent = "⏳ Analyzing...";
+        btn.disabled = true;
+        try {
+          const result = await window.Persona.api("analyzeAttachment", attId);
+          if (result?.attachment_summary) {
+            btn.outerHTML = `<span class="att-badge att-done">✓ Analyzed</span>`;
+            // Re-render would be ideal, but let's insert summary inline
+            const card = btn.closest(".att-card");
+            if (card) {
+              let parsed;
+              try { parsed = JSON.parse(result.attachment_summary); } catch { parsed = null; }
+              const html = parsed
+                ? `<p>${escapeHtml(parsed.summary || "")}</p>`
+                : `<p>${escapeHtml(result.attachment_summary)}</p>`;
+              const div = document.createElement("div");
+              div.className = "att-summary-content";
+              div.innerHTML = html;
+              card.appendChild(div);
+            }
+          }
+        } catch {
+          btn.textContent = "❌ Failed";
+        }
+      });
+    });
   } catch (e) {
     box.textContent = "Couldn't summarize this email right now.";
   }
+}
+
+function getAttachmentIcon(filename, contentType) {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  const ct = (contentType || "").toLowerCase();
+  if (ext === "pdf" || ct.includes("pdf")) return "📄";
+  if (ext === "docx" || ct.includes("word")) return "📝";
+  if (ext === "xlsx" || ext === "xls" || ct.includes("spreadsheet")) return "📊";
+  if (ext === "csv") return "📊";
+  if (ext === "pptx" || ct.includes("presentation")) return "📽";
+  if (["jpg","jpeg","png","gif","webp","bmp","svg"].includes(ext) || ct.startsWith("image/")) return "🖼";
+  if (["txt","md","log"].includes(ext)) return "📃";
+  if (["zip","rar","7z","tar","gz"].includes(ext)) return "📦";
+  return "📎";
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
 async function refreshConnectorAndInbox(forceRefresh) {

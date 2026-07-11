@@ -214,6 +214,12 @@ class Attachment(Base):
     content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attachment_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processing_status: Mapped[str] = mapped_column(
+        String(50), default="pending", server_default="pending", nullable=False
+    )
 
     # Relationships
     communication: Mapped["Communication"] = relationship("Communication", back_populates="attachments")
+

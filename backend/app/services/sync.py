@@ -56,8 +56,9 @@ class SyncService:
                 credentials = encrypted_creds or {}
 
             logger.info("[SyncService] Building connector client for connector %s", connector.id)
+            credentials_with_settings = {**credentials, "settings": connector.settings or {}}
             client = await connector_manager.get_connector(
-                str(connector.id), platform_str, credentials
+                str(connector.id), platform_str, credentials_with_settings
             )
 
             # Get latest cursor checkpoint

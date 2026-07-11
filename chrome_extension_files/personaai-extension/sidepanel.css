@@ -405,3 +405,113 @@ body.merlin-theme {
   transition: background 0.15s ease;
 }
 .send-btn:hover { background: #3b5bdb; }
+
+/* ====== Attachment Summary Cards ====== */
+.att-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2d3a;
+}
+.att-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9ca3af;
+  margin-bottom: 8px;
+  display: block;
+}
+.att-card {
+  background: #1e2030;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s ease;
+}
+.att-card:hover {
+  border-color: #4c6ef5;
+}
+.att-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.att-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.att-info {
+  flex: 1;
+  min-width: 0;
+}
+.att-name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e3e6eb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.att-size {
+  font-size: 10px;
+  color: #6b7280;
+}
+.att-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.att-done {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+.att-pending {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+.att-processing {
+  background: rgba(96, 165, 250, 0.12);
+  color: #60a5fa;
+}
+.att-analyze-btn {
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: 1px solid #4c6ef5;
+  background: transparent;
+  color: #4c6ef5;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.att-analyze-btn:hover {
+  background: #4c6ef5;
+  color: #fff;
+}
+.att-analyze-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.att-summary-content {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #171928;
+  border-radius: 8px;
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+.att-summary-content p {
+  margin: 0 0 4px;
+}
+.att-summary-content ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+.att-summary-content li {
+  margin-bottom: 2px;
+}
+

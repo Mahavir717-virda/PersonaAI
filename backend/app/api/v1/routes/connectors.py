@@ -289,6 +289,7 @@ async def connect_platform(
 async def get_gmail_auth_url(
     current_user: User = Depends(get_current_user),
     post_auth_redirect_uri: str = Query(...),
+    sync_range_days: int = Query(30, description="Email history sync range in days"),
 ) -> ApiResponse[GmailAuthUrlResponse]:
     """Return the Google authorization URL for Gmail connector onboarding."""
     settings = get_settings()
@@ -298,6 +299,7 @@ async def get_gmail_auth_url(
             "connector": "gmail",
             "user_id": str(current_user.id),
             "post_auth_redirect_uri": post_auth_redirect_uri,
+            "sync_range_days": sync_range_days,
             "issued_at": datetime.now(timezone.utc).isoformat(),
         }
     )
@@ -392,9 +394,11 @@ async def gmail_callback(
 
     cm = CredentialManager()
     encrypted_creds = cm.encrypt_credentials(credentials)
+    sync_range_days = state_data.get("sync_range_days", 30)
     connector.settings = {
         **(connector.settings or {}),
         "credentials": encrypted_creds,
+        "sync_range_days": sync_range_days,
     }
     await service._repo.update_state(connector, ConnectorState.CONNECTED)
     await session.commit()
@@ -615,3 +619,111 @@ async def update_connector_settings(
         message="Settings updated successfully",
         data=new_settings,
     )
+
+
+@router.post(
+    "/attachments/{attachment_id}/analyze",
+    response_model=ApiResponse[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Analyze a specific attachment on demand",
+)
+async def analyze_attachment(
+    attachment_id: str = Path(..., description="UUID of the attachment to analyze"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ApiResponse[Dict[str, Any]]:
+    """Trigger on-demand text extraction and AI summarization for a specific attachment."""
+    from app.models.communication import Attachment, Communication
+    from sqlalchemy import select
+    from app.services.attachment_extractor import AttachmentExtractor
+    from app.providers.storage.local import LocalFileStorageProvider
+    from app.ai.prompts.attachment_summarize import get_attachment_summarize_prompt
+    from app.ai.prompts.vision_summarize import get_vision_summarize_prompt
+    from app.ai.factory import AIProviderFactory
+
+    att_id = uuid.UUID(attachment_id)
+    stmt = select(Attachment).where(Attachment.id == att_id)
+    result = await session.execute(stmt)
+    att = result.scalar_one_or_none()
+
+    if not att:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    # Verify user owns this attachment's communication
+    comm_stmt = select(Communication).where(Communication.id == att.communication_id)
+    comm_result = await session.execute(comm_stmt)
+    comm = comm_result.scalar_one_or_none()
+    if not comm or not comm.connector_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Communication not found")
+
+    # Load bytes from storage
+    storage = LocalFileStorageProvider()
+    if not att.url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Attachment has no storage URL")
+
+    storage_path = att.url.replace("file:///", "").replace(storage.base_dir.as_posix() + "/", "")
+    try:
+        content_bytes = await storage.get_file(storage_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment file not found in storage")
+
+    att.processing_status = "processing"
+    session.add(att)
+    await session.commit()
+
+    extractor = AttachmentExtractor()
+    category = extractor.get_file_category(att.name, att.content_type)
+    extracted = extractor.extract_text(att.name, content_bytes, att.content_type)
+
+    try:
+        if extracted:
+            att.extracted_text = extracted
+            provider = AIProviderFactory.get_provider()
+            messages = get_attachment_summarize_prompt(att.name, extracted, comm.subject)
+            raw_summary = await provider.chat(messages)
+            att.attachment_summary = raw_summary
+            att.processing_status = "completed"
+        elif category == "image":
+            import base64
+            image_b64 = base64.b64encode(content_bytes).decode("utf-8")
+            mime = att.content_type or "image/png"
+            prompt = get_vision_summarize_prompt(att.name, comm.subject)
+            provider = AIProviderFactory.get_provider()
+            if hasattr(provider, "vision_chat"):
+                raw_summary = await provider.vision_chat(prompt, image_b64, mime)
+                att.attachment_summary = raw_summary
+                att.processing_status = "completed"
+            else:
+                att.processing_status = "failed"
+                raise HTTPException(
+                    status_code=status.HTTP_501_NOT_IMPLEMENTED,
+                    detail="Vision model not available for image analysis",
+                )
+        else:
+            att.processing_status = "skipped"
+
+        session.add(att)
+        await session.commit()
+
+        return ApiResponse(
+            success=True,
+            message="Attachment analyzed successfully",
+            data={
+                "id": str(att.id),
+                "name": att.name,
+                "processing_status": att.processing_status,
+                "attachment_summary": att.attachment_summary,
+                "extracted_text_length": len(att.extracted_text) if att.extracted_text else 0,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        att.processing_status = "failed"
+        session.add(att)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Attachment analysis failed: {str(e)}",
+        )
+

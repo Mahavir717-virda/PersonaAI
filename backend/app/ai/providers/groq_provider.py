@@ -76,3 +76,34 @@ class GroqProvider(BaseAIProvider):
             return True
         except Exception:
             return False
+
+    async def vision_chat(
+        self,
+        text_prompt: str,
+        image_base64: str,
+        mime_type: str = "image/png",
+        model: str = "llama-3.2-90b-vision-preview",
+    ) -> str:
+        """Send an image + text prompt to a vision-capable model for multimodal analysis."""
+        try:
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": text_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_base64}",
+                            },
+                        },
+                    ],
+                }
+            ]
+            response = await self.client.chat.completions.create(
+                messages=messages,
+                model=model,
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            raise self._map_exception(e)

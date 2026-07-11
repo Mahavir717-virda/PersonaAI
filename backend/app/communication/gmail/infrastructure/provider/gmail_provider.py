@@ -155,6 +155,17 @@ class GmailProvider(BaseProvider):
         if cursor:
             params["pageToken"] = cursor
 
+        # Build query parameters to filter by sync range and exclude non-critical categories
+        query_parts = []
+        settings = credentials.get("settings") or {}
+        sync_range = settings.get("sync_range_days")
+        if sync_range:
+            query_parts.append(f"newer_than:{sync_range}d")
+        
+        # Default smart filter: exclude spam, promotions, and social
+        query_parts.append("-category:promotions -category:social -category:spam")
+        params["q"] = " ".join(query_parts)
+
         async with httpx.AsyncClient() as client:
             list_resp = await self._api_get(
                 client,

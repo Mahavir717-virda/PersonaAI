@@ -152,8 +152,20 @@ export function ConnectorsPage() {
   const handleConnectClick = async (conn: ConnectorItem) => {
     if (conn.platform === 'gmail') {
       try {
+        const daysInput = prompt(
+          "How much email history would you like PersonaAI to analyze?\n\nEnter number of days (e.g. 30, 90, 180) or leave blank/0 for 'All':",
+          "30"
+        );
+        if (daysInput === null) return; // User cancelled
+        const syncRangeDays = parseInt(daysInput.trim(), 10) || 0;
+
         const postAuthRedirectUri = `${window.location.origin}/dashboard/connectors`;
-        const response = await apiClient.get(`/api/v1/connectors/gmail/auth-url?post_auth_redirect_uri=${encodeURIComponent(postAuthRedirectUri)}`);
+        let authUrlPath = `/api/v1/connectors/gmail/auth-url?post_auth_redirect_uri=${encodeURIComponent(postAuthRedirectUri)}`;
+        if (syncRangeDays > 0) {
+          authUrlPath += `&sync_range_days=${syncRangeDays}`;
+        }
+
+        const response = await apiClient.get(authUrlPath);
         const authUrl = response.data.data.authorization_url;
         window.location.href = authUrl;
       } catch (err) {
