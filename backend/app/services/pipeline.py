@@ -12,9 +12,10 @@ from app.services.storage import StorageService
 from app.services.indexer import PostgresIndexer
 from app.services.dlq import DeadLetterQueueService
 from app.services.ai_queue import AIQueue
-from app.events.bus import event_bus
 from app.events.events import MessageImported
 from app.models.communication import Communication
+from app.schemas.pipeline import ProcessPayloadResult
+from app.events.bus import event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class CommunicationPipeline:
         platform_str: str,
         raw_data: Dict[str, Any],
         connector_id: uuid.UUID | None = None,
-    ) -> Communication | None:
+    ) -> ProcessPayloadResult | None:
         """Execute the ingestion pipeline for a single raw message payload."""
         platform_key = platform_str.upper()
         step = "start"
@@ -66,6 +67,8 @@ class CommunicationPipeline:
             comm = await connector.normalize(raw_data)
             if connector_id is not None:
                 comm.connector_id = connector_id
+
+            attachment_count = len(raw_data.get("attachments", []))
 
             # 2. Validator
             step = "validate"
@@ -81,7 +84,11 @@ class CommunicationPipeline:
             )
             if exists:
                 logger.info(f"[Pipeline] Deduplicated: message {comm.platform_message_id} already exists.")
-                return exists
+                return ProcessPayloadResult(
+                    communication_id=exists.id,
+                    attachment_count=attachment_count,
+                    is_new=False,
+                )
 
             # 4. Storage & DB write
             step = "persist"
@@ -126,7 +133,11 @@ class CommunicationPipeline:
             step = "queue"
             await self.ai_queue.enqueue_task(str(comm.id), raw_data)
 
-            return comm
+            return ProcessPayloadResult(
+                communication_id=comm.id,
+                attachment_count=attachment_count,
+                is_new=True,
+            )
 
         except Exception as e:
             logger.error(

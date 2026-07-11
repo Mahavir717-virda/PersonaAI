@@ -77,14 +77,14 @@ class SyncService:
                     record_id = raw_record.get("id")
                     logger.info("[SyncService] Ingesting message %s", record_id)
                     # Route through central communication pipeline
-                    comm = await self.pipeline.process_payload(
+                    result = await self.pipeline.process_payload(
                         platform_str,
                         raw_record,
                         connector_id=connector.id,
                     )
-                    if comm:
+                    if result and result.is_new:
                         messages_imported += 1
-                        attachments_imported += len(comm.attachments)
+                        attachments_imported += result.attachment_count
                     
                     # Update checkpoint cursor tracker when the connector exposes a checkpoint
                     new_cursor = getattr(client, "last_sync_cursor", None) or new_cursor
@@ -112,14 +112,14 @@ class SyncService:
                     # Retry synchronization pass
                     logger.info("[SyncService] Retrying sync after credential refresh")
                     async for raw_record in client.sync(cursor):
-                        comm = await self.pipeline.process_payload(
+                        result = await self.pipeline.process_payload(
                             platform_str,
                             raw_record,
                             connector_id=connector.id,
                         )
-                        if comm:
+                        if result and result.is_new:
                             messages_imported += 1
-                            attachments_imported += len(comm.attachments)
+                            attachments_imported += result.attachment_count
                         new_cursor = getattr(client, "last_sync_cursor", None) or new_cursor
                     new_cursor = getattr(client, "last_sync_cursor", None) or new_cursor
                 else:
@@ -129,12 +129,20 @@ class SyncService:
             if new_cursor:
                 await self._connector_repo.update_checkpoint(connector.id, user_id, new_cursor)
 
+            failed_ids = client.get_failed_ids()
+            status = "success"
+            if failed_ids:
+                status = "partial_success"
+                error_msg = f"{len(failed_ids)} messages failed to sync."
+
             # Update history log
             await self._connector_repo.update_sync_history(
                 history,
-                status="success",
+                status=status,
                 messages_imported=messages_imported,
                 attachments_imported=attachments_imported,
+                failed_ids=failed_ids,
+                error=error_msg,
             )
             await self._connector_repo.update_state(connector, ConnectorState.CONNECTED)
             await self.session.commit()

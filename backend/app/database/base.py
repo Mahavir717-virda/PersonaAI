@@ -4,4 +4,9 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class for future ORM models."""
+    """Base class for ORM models."""
+
+
+
+# Base class is defined. Models should be imported where needed or in alembic env.py.
+

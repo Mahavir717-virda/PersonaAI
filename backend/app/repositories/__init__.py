@@ -1,5 +1,7 @@
-"""Repository package for future database access objects."""
+"""Shared repository package."""
 
-from app.repositories.base import BaseRepository
+from app.repositories.user import UserRepository
+from app.repositories.connector import ConnectorRepository
+from app.repositories.communication import CommunicationRepository
 
-__all__ = ["BaseRepository"]
+__all__ = ["UserRepository", "ConnectorRepository", "CommunicationRepository"]
