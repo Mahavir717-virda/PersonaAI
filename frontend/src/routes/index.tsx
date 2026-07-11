@@ -12,6 +12,7 @@ import { ConnectorsPage } from '@/features/connectors/pages/ConnectorsPage';
 import { ConnectorDetailPage } from '@/features/connectors/pages/ConnectorDetailPage';
 import { CommunicationsPage } from '@/features/communications/pages/CommunicationsPage';
 import { GmailPage } from '@/features/gmail/pages/GmailPage';
+import { AIPage } from '@/features/dashboard/pages/AIPage';
 import { EmptyState as BaseEmptyState } from '@/components/common/EmptyState';
 import { PageHeader } from '@/components/common/PageHeader';
 import { MessageCircle, Sparkles, CheckSquare, Search } from 'lucide-react';
@@ -73,13 +74,7 @@ export const router = createBrowserRouter([
           },
           {
             path: 'ai',
-            element: (
-              <FeaturePlaceholder
-                title="AI Assistant Chat"
-                description="Interact directly with Ollama to query summaries, generate email replies, and schedule tasks."
-                icon={Sparkles}
-              />
-            ),
+            element: <AIPage />,
           },
           {
             path: 'gmail',

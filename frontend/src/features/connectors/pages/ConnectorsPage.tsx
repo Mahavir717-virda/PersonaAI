@@ -52,6 +52,7 @@ export function ConnectorsPage() {
   const [connecting, setConnecting] = useState(false);
   const { addNotification } = useNotificationStore();
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuthStore();
 
   const fetchConnectors = async () => {
     try {
@@ -83,8 +84,20 @@ export function ConnectorsPage() {
   };
 
   useEffect(() => {
-    fetchConnectors();
-  }, []);
+    if (!isLoading && isAuthenticated) {
+      fetchConnectors();
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      addNotification({
+        title: 'Platform Connected',
+        message: 'Your Gmail connection has been successfully established.',
+        type: 'success',
+      });
+      // Remove the query param from the URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [isLoading, isAuthenticated]);
 
   const handleSync = async (conn: ConnectorItem) => {
     if (conn.state === 'disconnected') return;
@@ -139,7 +152,8 @@ export function ConnectorsPage() {
   const handleConnectClick = async (conn: ConnectorItem) => {
     if (conn.platform === 'gmail') {
       try {
-        const response = await apiClient.get('/api/v1/connectors/gmail/auth-url');
+        const postAuthRedirectUri = `${window.location.origin}/dashboard/connectors`;
+        const response = await apiClient.get(`/api/v1/connectors/gmail/auth-url?post_auth_redirect_uri=${encodeURIComponent(postAuthRedirectUri)}`);
         const authUrl = response.data.data.authorization_url;
         window.location.href = authUrl;
       } catch (err) {
