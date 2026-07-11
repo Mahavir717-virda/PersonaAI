@@ -1,7 +1,13 @@
 """Connector REST API routes."""
 
 import logging
+import base64
+import hashlib
+import hmac
+import json
 import uuid
+from urllib.parse import urlencode
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Path
 from fastapi.responses import RedirectResponse
@@ -10,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
 from app.database.session import get_session
+from app.config.config import get_settings
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.repositories.connector import ConnectorRepository
@@ -94,6 +101,50 @@ class GmailMessagesResponse(BaseModel):
 
     messages: List[GmailMessageResponse]
     next_cursor: str | None
+
+
+class GmailAuthUrlResponse(BaseModel):
+    """Google OAuth authorization URL payload."""
+
+    authorization_url: str
+
+
+def _encode_state(payload: dict[str, Any]) -> str:
+    """Create a signed state token for Gmail OAuth."""
+    settings = get_settings()
+    serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    signature = hmac.new(
+        settings.jwt_secret_key.encode("utf-8"),
+        serialized,
+        hashlib.sha256,
+    ).digest()
+    token = base64.urlsafe_b64encode(serialized).decode("utf-8").rstrip("=")
+    sig = base64.urlsafe_b64encode(signature).decode("utf-8").rstrip("=")
+    return f"{token}.{sig}"
+
+
+def _decode_state(state: str) -> dict[str, Any]:
+    """Verify and decode a Gmail OAuth state token."""
+    settings = get_settings()
+    try:
+        token, sig = state.split(".", 1)
+        padded_token = token + "=" * (-len(token) % 4)
+        padded_sig = sig + "=" * (-len(sig) % 4)
+        serialized = base64.urlsafe_b64decode(padded_token.encode("utf-8"))
+        expected_sig = hmac.new(
+            settings.jwt_secret_key.encode("utf-8"),
+            serialized,
+            hashlib.sha256,
+        ).digest()
+        provided_sig = base64.urlsafe_b64decode(padded_sig.encode("utf-8"))
+        if not hmac.compare_digest(expected_sig, provided_sig):
+            raise ValueError("Invalid OAuth state signature")
+        return json.loads(serialized.decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Gmail OAuth state",
+        ) from exc
 
 
 @router.get(
@@ -213,6 +264,11 @@ async def connect_platform(
     session: AsyncSession = Depends(get_session),
 ) -> ApiResponse[ConnectResponse]:
     """Initialize credentials and activate a platform connector."""
+    if platform.lower() == "gmail":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="This endpoint is deprecated. Use GET /api/v1/connectors/gmail/auth-url instead.",
+        )
     service = ConnectorService(session)
     res = await service.connect_platform(
         user_id=current_user.id, platform_str=platform, auth_data=payload.auth_data
@@ -221,6 +277,137 @@ async def connect_platform(
         success=True,
         message=f"{platform.capitalize()} integration connected successfully",
         data=ConnectResponse(**res),
+    )
+
+
+@router.get(
+    "/gmail/auth-url",
+    response_model=ApiResponse[GmailAuthUrlResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Get Gmail OAuth authorization URL",
+)
+async def get_gmail_auth_url(
+    current_user: User = Depends(get_current_user),
+    post_auth_redirect_uri: str = Query(...),
+) -> ApiResponse[GmailAuthUrlResponse]:
+    """Return the Google authorization URL for Gmail connector onboarding."""
+    settings = get_settings()
+    backend_callback_uri = settings.google_redirect_uri
+    state = _encode_state(
+        {
+            "connector": "gmail",
+            "user_id": str(current_user.id),
+            "post_auth_redirect_uri": post_auth_redirect_uri,
+            "issued_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    query = urlencode(
+        {
+            "client_id": settings.google_client_id,
+            "redirect_uri": backend_callback_uri,
+            "response_type": "code",
+            "access_type": "offline",
+            "prompt": "consent",
+            "scope": "https://www.googleapis.com/auth/gmail.readonly openid email profile",
+            "state": state,
+        }
+    )
+    return ApiResponse(
+        success=True,
+        message="Gmail authorization URL generated successfully",
+        data=GmailAuthUrlResponse(authorization_url=f"https://accounts.google.com/o/oauth2/v2/auth?{query}"),
+    )
+
+
+@router.get("/gmail/callback")
+async def gmail_callback(
+    code: str | None = Query(None),
+    state: str | None = Query(None),
+    error: str | None = Query(None),
+    session: AsyncSession = Depends(get_session),
+) -> RedirectResponse:
+    """Complete Gmail OAuth and persist connector credentials."""
+    settings = get_settings()
+
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    if not code or not state:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Gmail OAuth parameters")
+
+    state_data = _decode_state(state)
+    if state_data.get("connector") != "gmail":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Gmail OAuth state")
+
+    try:
+        user_id = uuid.UUID(state_data["user_id"])
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Gmail OAuth user") from exc
+    
+    post_auth_redirect_uri = state_data.get("post_auth_redirect_uri")
+    if not post_auth_redirect_uri:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing post-auth redirect URI")
+
+    backend_callback_uri = settings.google_redirect_uri
+    async with httpx.AsyncClient() as http_client:
+        token_response = await http_client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": settings.google_client_id,
+                "client_secret": settings.google_client_secret,
+                "redirect_uri": backend_callback_uri,
+                "grant_type": "authorization_code",
+            },
+            timeout=10.0,
+        )
+
+    if token_response.status_code != 200:
+        logger.error("Gmail callback token exchange failed: %s", token_response.text)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Gmail authorization code exchange failed",
+        )
+
+    token_data = token_response.json()
+    credentials = {
+        "access_token": token_data.get("access_token"),
+        "refresh_token": token_data.get("refresh_token"),
+        "expires_in": token_data.get("expires_in", 3600),
+        "scope": token_data.get("scope"),
+        "token_type": token_data.get("token_type"),
+    }
+
+    if not credentials["access_token"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Gmail authorization did not return an access token",
+        )
+
+    service = ConnectorService(session)
+    connector = await service._repo.get_by_platform_and_user(Platform.GMAIL, user_id)
+    if not connector:
+        connector = await service._repo.create_connector(user_id, Platform.GMAIL)
+
+    from app.services.credential_manager import CredentialManager
+
+    cm = CredentialManager()
+    encrypted_creds = cm.encrypt_credentials(credentials)
+    connector.settings = {
+        **(connector.settings or {}),
+        "credentials": encrypted_creds,
+    }
+    await service._repo.update_state(connector, ConnectorState.CONNECTED)
+    await session.commit()
+
+    sync_service = SyncService(session)
+    try:
+        await sync_service.trigger_sync(user_id=user_id, platform_str="gmail")
+    except Exception:
+        logger.exception("Initial Gmail sync failed after callback for user %s", user_id)
+
+    return RedirectResponse(
+        url=f"{post_auth_redirect_uri}?success=true",
+        status_code=302,
     )
 
 
