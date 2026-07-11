@@ -56,6 +56,25 @@ class Settings(BaseSettings):
     database_max_overflow: int = 10
     database_connect_timeout_seconds: float = 2.0
 
+    jwt_secret_key: str = "supersecretkeyforpersonaaijwtgenerationandverificationtobeoverridden"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+    credential_encryption_secret: str = (
+        "change-me-in-production-credential-encryption-secret"
+    )
+
+    google_client_id: str = "246599226169-je0tu4he1h3ohj08rnml9eraak9f1hjp.apps.googleusercontent.com"
+    google_client_secret: str = "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"
+    google_redirect_uri: str = "http://localhost:8000/api/v1/connectors/gmail/callback"
+    chrome_extension_redirect_url: str = "chrome-extension://ibbehiejdggjhmdbeafhdmbjidhgkkcf/callback.html"
+
+    gmail_max_concurrent_requests: int = 10
+    gmail_max_retries: int = 5
+    gmail_initial_backoff_seconds: float = 1.0
+    gmail_max_backoff_seconds: float = 30.0
+
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
     cors_allow_credentials: bool = True
     cors_allow_methods: list[str] = Field(default_factory=lambda: ["*"])
@@ -73,8 +92,13 @@ class Settings(BaseSettings):
     log_json: bool = True
 
     ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
     ollama_health_path: str = "/api/tags"
     health_check_timeout_seconds: float = 1.0
+
+    groq_api_key: str | None = None
+    ai_provider: str = "groq"
+    ai_model: str = "llama3-8b-8192"
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -82,10 +106,29 @@ class Settings(BaseSettings):
         """Support deployment-style debug values from host environments."""
         if isinstance(value, str):
             normalized_value = value.strip().lower()
-            if normalized_value in {"release", "production", "prod"}:
+            if normalized_value in {
+                "release",
+                "production",
+                "prod",
+                "false",
+                "0",
+                "no",
+                "off",
+                "warn",
+                "warning",
+            }:
                 return False
-            if normalized_value in {"debug", "development", "dev"}:
+            if normalized_value in {
+                "debug",
+                "development",
+                "dev",
+                "true",
+                "1",
+                "yes",
+                "on",
+            }:
                 return True
+            return False
         return value
 
     @field_validator(

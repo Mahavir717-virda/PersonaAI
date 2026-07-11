@@ -73,12 +73,22 @@ def configure_logging(settings: Settings) -> None:
             },
             "root": {
                 "handlers": ["console", "file"],
-                "level": settings.log_level.value,
+                "level": "ERROR",
             },
             "loggers": {
                 "uvicorn.access": {
                     "handlers": ["console", "file"],
                     "level": settings.log_level.value,
+                    "propagate": False,
+                },
+                "app.api.v1.routes.auth": {
+                    "handlers": ["console", "file"],
+                    "level": "INFO",
+                    "propagate": False,
+                },
+                "app.api.v1.routes.connectors": {
+                    "handlers": ["console", "file"],
+                    "level": "INFO",
                     "propagate": False,
                 },
             },
