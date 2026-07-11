@@ -242,6 +242,7 @@ Use:
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/connectors` | Yes | List user connectors and available platforms |
 | `GET` | `/api/v1/connectors/metrics` | Yes | Aggregate sync metrics |
+| `GET` | `/api/v1/connectors/gmail/auth-url` | Yes | Get Gmail OAuth authorization URL |
 | `POST` | `/api/v1/connectors/{platform}/connect` | Yes | Connect a platform |
 | `POST` | `/api/v1/connectors/{platform}/disconnect` | Yes | Disconnect a platform |
 | `POST` | `/api/v1/connectors/{platform}/sync` | Yes | Trigger manual sync |
@@ -251,6 +252,8 @@ Use:
 Notes:
 - `messages` is currently implemented for Gmail.
 - `platform` should be `gmail` for the inbox contract.
+- Gmail onboarding uses `GET /api/v1/connectors/gmail/auth-url` and backend callback handling.
+- `POST /api/v1/connectors/gmail/connect` is deprecated for Gmail and returns `410 Gone`.
 
 ### 5.5 Communications
 

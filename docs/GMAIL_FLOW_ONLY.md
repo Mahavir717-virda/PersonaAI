@@ -10,8 +10,8 @@ flowchart TD
     C -- no --> J[Read stored messages]
     D --> E[Load connector and credentials]
     E --> F[connector.sync(cursor)]
-    F --> G[GmailProvider.fetch_messages_page]
-    G --> H[Fetch Gmail message list]
+    F --> G[GmailProvider.fetch_messages_since_history or fetch_messages_page]
+    G --> H[Fetch Gmail change set or message list]
     H --> I[Fetch each message detail]
     I --> K[CommunicationPipeline.process_payload]
     K --> L[Normalize]
@@ -57,8 +57,8 @@ sequenceDiagram
 - Manual sync exists.
 - Incremental cursor checkpoint exists.
 - Sync history exists.
-- Scheduler is a stub and is not wired to a real background worker.
-- Gmail History API incremental sync is not implemented.
+- Background sync scheduling is wired through the extension alarm loop.
+- Gmail History API incremental sync is implemented in the provider.
 
 ## 2. Unified Inbox Flow
 
@@ -92,7 +92,7 @@ sequenceDiagram
 ### Current State
 
 - Unified inbox reads from `communications`.
-- Gmail inbox still has a connector-specific read path.
+- Gmail inbox still has a connector-specific read path for loading and refresh.
 - The shared communications table already supports a unified inbox pattern.
 
 ## 3. Email Actions Flow
@@ -136,4 +136,3 @@ flowchart TD
     J[Gmail History API] --> K[Not wired]
     L[Message action endpoints] --> M[Not wired]
 ```
-

@@ -33,6 +33,12 @@ The central domain object is `Communication`. Connectors normalize raw platform 
 
 Public endpoints use explicit versioning through `/api/v1` and future `/api/v2` namespaces. Responses use shared envelopes so success and error payloads remain consistent across the platform.
 
+## Authentication and OAuth
+
+User authentication is handled via JWT (JSON Web Tokens). The backend provides endpoints for login, logout, and token refresh.
+
+For connecting to third-party services, PersonaAI uses a client-aware OAuth 2.0 flow that supports multiple clients (Web, Chrome Extension, etc.) from a single set of backend endpoints. For a detailed explanation of this flow, see [OAuth 2.0 Architecture](./OAUTH_FLOW.md).
+
 ## Database
 
 The database layer is prepared for PostgreSQL through SQLAlchemy 2.0 async primitives:
