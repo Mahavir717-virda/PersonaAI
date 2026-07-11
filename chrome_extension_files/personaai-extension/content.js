@@ -25,7 +25,7 @@ function buildOrb() {
   settingsBtn.innerHTML = "⚙️";
   settingsBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" }).catch(() => {});
+    chrome.runtime.sendMessage({ type: "OPEN_URL" , url: "https://persona-ai-nine-peach.vercel.app" }).catch(() => {});
   });
   stack.appendChild(settingsBtn);
 
@@ -36,7 +36,7 @@ function buildOrb() {
   webBtn.innerHTML = "🌐";
   webBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    chrome.runtime.sendMessage({ type: "OPEN_URL", url: "http://localhost:3000" }).catch(() => {});
+    chrome.runtime.sendMessage({ type: "OPEN_URL", url: "https://persona-ai-nine-peach.vercel.app" }).catch(() => {});
   });
   stack.appendChild(webBtn);
 

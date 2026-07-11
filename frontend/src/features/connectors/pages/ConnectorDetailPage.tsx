@@ -55,46 +55,13 @@ export function ConnectorDetailPage() {
       setImportSpam(match.settings.import_spam || false);
       setImportPromo(match.settings.import_promotions || false);
 
-      // Now fetch sync history (since we have the connector UUID)
-      // For development, we'll fetch communications or simulate sync runs if DB history is empty
-      // Let's call a mock metrics or mock sync history listing or build one
-      // We added `list_sync_history` inside our backend ConnectorRepository, but let's query it.
-      // Wait, let's look at if we have an endpoint for sync history?
-      // Since we don't have a direct endpoint for history, we can query metrics or mock it if needed.
-      // Actually, let's create a quick list or mock details. Let's make it look premium.
-      const mockHistory: SyncHistoryItem[] = [
-        {
-          id: '1',
-          started_at: new Date(Date.now() - 3600000).toISOString(),
-          completed_at: new Date(Date.now() - 3590000).toISOString(),
-          messages_imported: 8,
-          attachments_imported: 1,
-          status: 'success',
-          duration: 10.2,
-          error: null,
-        },
-        {
-          id: '2',
-          started_at: new Date(Date.now() - 7200000).toISOString(),
-          completed_at: new Date(Date.now() - 7192000).toISOString(),
-          messages_imported: 12,
-          attachments_imported: 0,
-          status: 'success',
-          duration: 8.5,
-          error: null,
-        },
-        {
-          id: '3',
-          started_at: new Date(Date.now() - 10800000).toISOString(),
-          completed_at: new Date(Date.now() - 10795000).toISOString(),
-          messages_imported: 0,
-          attachments_imported: 0,
-          status: 'success',
-          duration: 5.0,
-          error: null,
-        },
-      ];
-      setSyncHistory(mockHistory);
+      // Fetch real sync history from the backend endpoint
+      try {
+        const histResponse = await apiClient.get(`/api/v1/connectors/${platform}/history`);
+        setSyncHistory(histResponse.data.data || []);
+      } catch (histErr) {
+        console.error('Failed to fetch sync history:', histErr);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -107,8 +74,19 @@ export function ConnectorDetailPage() {
   }, [platform]);
 
   const saveSettings = async () => {
-    // Save to settings column inside connector config
-    alert('Settings saved successfully.');
+    try {
+      await apiClient.post(`/api/v1/connectors/${platform}/settings`, {
+        settings: {
+          sync_interval: syncInterval,
+          import_spam: importSpam,
+          import_promotions: importPromo,
+        },
+      });
+      alert('Settings saved successfully.');
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      alert('Failed to save settings.');
+    }
   };
 
   if (loading || !connectorDetails) {

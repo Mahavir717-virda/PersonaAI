@@ -516,3 +516,102 @@ async def check_platform_health(
         message=f"{platform.capitalize()} health status checked",
         data={"healthy": is_healthy},
     )
+
+
+class UpdateSettingsRequest(BaseModel):
+    """Payload to update connector settings."""
+    settings: Dict[str, Any]
+
+
+@router.get(
+    "/{platform}/history",
+    response_model=ApiResponse[List[Dict[str, Any]]],
+    status_code=status.HTTP_200_OK,
+    summary="Get connector sync history",
+)
+async def get_connector_history(
+    platform: str = Path(..., description="The platform key (currently gmail)"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ApiResponse[List[Dict[str, Any]]]:
+    """Return sync history runs for a connector platform."""
+    try:
+        plat = Platform[platform.upper()]
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid platform: '{platform}'",
+        )
+
+    repo = ConnectorRepository(session)
+    connector = await repo.get_by_platform_and_user(plat, current_user.id)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Connector not found",
+        )
+
+    history_runs = await repo.list_sync_history(connector.id, limit=30)
+    serialized = []
+    for run in history_runs:
+        serialized.append({
+            "id": str(run.id),
+            "started_at": run.started_at.isoformat(),
+            "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+            "messages_imported": run.messages_imported,
+            "attachments_imported": run.attachments_imported,
+            "status": run.status,
+            "duration": run.duration,
+            "error": run.error,
+        })
+    return ApiResponse(
+        success=True,
+        message="Sync history retrieved successfully",
+        data=serialized,
+    )
+
+
+@router.post(
+    "/{platform}/settings",
+    response_model=ApiResponse[Dict[str, Any]],
+    status_code=status.HTTP_200_OK,
+    summary="Update connector settings",
+)
+async def update_connector_settings(
+    payload: UpdateSettingsRequest,
+    platform: str = Path(..., description="The platform key"),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ApiResponse[Dict[str, Any]]:
+    """Update settings dictionary for a connector integration."""
+    try:
+        plat = Platform[platform.upper()]
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid platform: '{platform}'",
+        )
+
+    repo = ConnectorRepository(session)
+    connector = await repo.get_by_platform_and_user(plat, current_user.id)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Connector not found",
+        )
+
+    existing = connector.settings or {}
+    creds = existing.get("credentials")
+    new_settings = {**existing, **payload.settings}
+    if creds:
+        new_settings["credentials"] = creds
+
+    connector.settings = new_settings
+    session.add(connector)
+    await session.commit()
+
+    return ApiResponse(
+        success=True,
+        message="Settings updated successfully",
+        data=new_settings,
+    )
