@@ -3,7 +3,7 @@
 // Used by background.js (source of truth) and re-used via message passing from
 // the side panel / content script so token refresh logic lives in ONE place.
 
-const DEFAULT_BASE_URL = "http://localhost:8000";
+const DEFAULT_BASE_URL = "https://personaai-c5ow.onrender.com";
 
 export async function getBaseUrl() {
   const { baseUrl } = await chrome.storage.local.get("baseUrl");
