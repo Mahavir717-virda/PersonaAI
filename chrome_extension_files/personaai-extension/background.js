@@ -133,6 +133,14 @@ async function handleMessage(message) {
       const { accessToken } = await api.getTokens();
       return { ok: true, signedIn: Boolean(accessToken) };
     }
+    case "OPEN_OPTIONS": {
+      chrome.runtime.openOptionsPage();
+      return { ok: true };
+    }
+    case "OPEN_URL": {
+      chrome.tabs.create({ url: message.url });
+      return { ok: true };
+    }
     case "TRIGGER_BACKGROUND_SYNC": {
       const data = await runBackgroundSync();
       return { ok: true, data };

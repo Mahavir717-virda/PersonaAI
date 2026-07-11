@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PageHeader } from '@/components/common/PageHeader';
 import { Sparkles, Brain, ListChecks, Calendar, Users, Briefcase, FileText } from 'lucide-react';
 import apiClient from '@/services/api.client';

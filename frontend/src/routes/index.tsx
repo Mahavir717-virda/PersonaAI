@@ -15,7 +15,7 @@ import { GmailPage } from '@/features/gmail/pages/GmailPage';
 import { AIPage } from '@/features/dashboard/pages/AIPage';
 import { EmptyState as BaseEmptyState } from '@/components/common/EmptyState';
 import { PageHeader } from '@/components/common/PageHeader';
-import { MessageCircle, Sparkles, CheckSquare, Search } from 'lucide-react';
+import { MessageCircle, CheckSquare, Search } from 'lucide-react';
 
 // Common placeholder helper for undeveloped routes
 function FeaturePlaceholder({ title, description, icon: Icon }: { title: string; description: string; icon: any }) {

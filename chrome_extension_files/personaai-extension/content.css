@@ -1,88 +1,163 @@
-#persona-orb {
+/* Merlin-style Floating Action Buttons and Injected Elements styling */
+
+#persona-launcher-stack {
   position: fixed;
   bottom: 24px;
   right: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+}
+
+#persona-orb {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2952e3, #6f86f5);
-  box-shadow: 0 4px 14px rgba(41, 82, 227, 0.4);
+  background: linear-gradient(135deg, #4c6ef5, #3b5bdb);
+  box-shadow: 0 4px 16px rgba(76, 110, 245, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 18px;
   cursor: pointer;
-  z-index: 999999;
-  user-select: none;
-  transition: transform 0.15s ease;
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-#persona-orb:hover { transform: scale(1.06); }
+#persona-orb:hover {
+  transform: scale(1.08);
+}
 
+/* Badge count for unread emails */
 #persona-orb .badge {
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #d23b3b;
+  background: #f03e3e;
   color: #fff;
   font-size: 10px;
   font-weight: 700;
-  min-width: 16px;
-  height: 16px;
-  border-radius: 8px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
   display: none;
   align-items: center;
   justify-content: center;
-  padding: 0 3px;
+  padding: 0 4px;
+  border: 2px solid #fff;
 }
 #persona-orb .badge.show { display: flex; }
 
+/* Shortcut Hint Label */
+.persona-shortcut-label {
+  position: absolute;
+  right: 64px;
+  background: #1a1b26;
+  color: #c0caf5;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(10px);
+  transition: all 0.2s ease;
+  border: 1px solid #2f3147;
+}
+#persona-orb:hover .persona-shortcut-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Sub-action buttons (globe and gear) */
+.persona-sub-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #1e1f29;
+  border: 1px solid #2f3147;
+  color: #a0aec0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  transition: all 0.2s ease;
+  transform: translateY(20px) scale(0);
+  opacity: 0;
+}
+
+#persona-launcher-stack:hover .persona-sub-btn {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.persona-sub-btn:hover {
+  background: #2b2d3d;
+  color: #fff;
+  border-color: #4c6ef5;
+}
+
+/* Hover Digest Popup Panel */
 #persona-orb-panel {
   position: fixed;
-  bottom: 86px;
+  bottom: 90px;
   right: 24px;
-  width: 300px;
-  max-height: 360px;
-  background: #fff;
+  width: 320px;
+  max-height: 380px;
+  background: #1a1b26;
+  border: 1px solid #2f3147;
   border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
   z-index: 999999;
   display: none;
   flex-direction: column;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
+  color: #e3e6eb;
 }
 #persona-orb-panel.open { display: flex; }
 #persona-orb-panel .panel-header {
-  padding: 10px 12px;
-  background: #2952e3;
+  padding: 12px 14px;
+  background: #252836;
+  border-bottom: 1px solid #2f3147;
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
 }
 #persona-orb-panel .panel-body {
-  padding: 10px 12px;
+  padding: 14px;
   overflow-y: auto;
-  color: #333;
-  line-height: 1.4;
+  color: #cbd5e0;
+  line-height: 1.5;
 }
 
+/* Inline Auto-Summarizer Card above email thread */
 #persona-inline-summary {
-  margin: 10px 0;
-  padding: 10px 14px;
-  background: #f1f4ff;
-  border-left: 3px solid #2952e3;
-  border-radius: 6px;
+  margin: 14px 0;
+  padding: 12px 16px;
+  background: #1a1b26;
+  border: 1px solid #2f3147;
+  border-left: 4px solid #4c6ef5;
+  border-radius: 8px;
   font-size: 13px;
-  color: #2a2f55;
-  line-height: 1.4;
+  color: #cbd5e0;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 #persona-inline-summary .label {
   font-weight: 700;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #2952e3;
-  margin-bottom: 4px;
+  letter-spacing: 0.05em;
+  color: #4c6ef5;
+  margin-bottom: 6px;
 }

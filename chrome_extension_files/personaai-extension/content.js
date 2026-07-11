@@ -13,12 +13,40 @@ const SUMMARY_CACHE = new Map(); // threadKey -> summary text, avoids re-summari
 // ---------- Floating orb ----------
 
 function buildOrb() {
-  if (document.getElementById("persona-orb")) return;
+  if (document.getElementById("persona-launcher-stack")) return;
 
+  const stack = document.createElement("div");
+  stack.id = "persona-launcher-stack";
+
+  // 1. Settings sub-button
+  const settingsBtn = document.createElement("div");
+  settingsBtn.className = "persona-sub-btn";
+  settingsBtn.title = "Settings";
+  settingsBtn.innerHTML = "⚙️";
+  settingsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    chrome.runtime.sendMessage({ type: "OPEN_OPTIONS" }).catch(() => {});
+  });
+  stack.appendChild(settingsBtn);
+
+  // 2. Web launcher sub-button
+  const webBtn = document.createElement("div");
+  webBtn.className = "persona-sub-btn";
+  webBtn.title = "Open Web App";
+  webBtn.innerHTML = "🌐";
+  webBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    chrome.runtime.sendMessage({ type: "OPEN_URL", url: "http://localhost:3000" }).catch(() => {});
+  });
+  stack.appendChild(webBtn);
+
+  // 3. Main Orb launcher
   const orb = document.createElement("div");
   orb.id = "persona-orb";
-  orb.innerHTML = `P<span class="badge"></span>`;
-  document.body.appendChild(orb);
+  orb.innerHTML = `P<span class="badge"></span><span class="persona-shortcut-label">Ctrl + M</span>`;
+  stack.appendChild(orb);
+
+  document.body.appendChild(stack);
 
   const panel = document.createElement("div");
   panel.id = "persona-orb-panel";
@@ -44,7 +72,7 @@ async function refreshDigest(panel) {
   try {
     const result = await window.Persona.api("getMessages", "gmail", false);
     const messages = result?.messages || result || [];
-    const unread = messages.filter((m) => m.metadata?.unread).length;
+    const unread = messages.filter((m) => m.unread || m.metadata?.unread).length;
 
     setBadge(unread);
 
@@ -59,6 +87,7 @@ async function refreshDigest(panel) {
     );
     body.textContent = reply?.reply || "No digest available.";
   } catch (e) {
+    console.error("[PersonaAI] refreshDigest failed:", e);
     body.textContent = "Sign in to PersonaAI to see your digest.";
   }
 }
@@ -80,9 +109,9 @@ async function pollBadgeQuietly() {
     if (!signedIn) return;
     const result = await window.Persona.api("getMessages", "gmail", false);
     const messages = result?.messages || result || [];
-    setBadge(messages.filter((m) => m.metadata?.unread).length);
+    setBadge(messages.filter((m) => m.unread || m.metadata?.unread).length);
   } catch (e) {
-    // stay quiet — orb just won't update this cycle
+    console.error("[PersonaAI] pollBadgeQuietly failed:", e);
   }
 }
 
@@ -138,16 +167,21 @@ async function handleThreadOpen() {
   injectSummaryCard("Summarizing…");
   try {
     const { signedIn } = await window.Persona.authState();
-    if (!signedIn) return;
+    if (!signedIn) {
+      console.warn("[PersonaAI] Not signed in, skipping auto-summary");
+      return;
+    }
 
-    const reply = await window.Persona.api(
-      "sendChatMessage",
-      `Summarize this email in 1-2 sentences. Subject: "${info.subject}". Body: ${info.body}`
+    const res = await window.Persona.api(
+      "getSummary",
+      `Subject: "${info.subject}". Body: ${info.body}`
     );
-    const text = reply?.reply || "No summary available.";
+    const sum = res?.summary || res;
+    const text = sum?.summary || sum || "No summary available.";
     SUMMARY_CACHE.set(key, text);
     injectSummaryCard(text);
   } catch (e) {
+    console.error("[PersonaAI] Auto-summarization failed:", e);
     injectSummaryCard("Couldn't summarize this email right now.");
   }
 }

@@ -5,7 +5,6 @@ const els = {
   signedOutView: document.getElementById("signedOutView"),
   signedInView: document.getElementById("signedInView"),
   signInBtn: document.getElementById("signInBtn"),
-  searchInput: document.getElementById("searchInput"),
   refreshBtn: document.getElementById("refreshBtn"),
   reconnectBanner: document.getElementById("reconnectBanner"),
   reconnectBtn: document.getElementById("reconnectBtn"),
@@ -16,10 +15,25 @@ const els = {
   chatLog: document.getElementById("chatLog"),
   chatInput: document.getElementById("chatInput"),
   chatSendBtn: document.getElementById("chatSendBtn"),
+  modelSelect: document.getElementById("modelSelect"),
+  newChatBtn: document.getElementById("newChatBtn"),
+  historyBtn: document.getElementById("historyBtn"),
+  settingsBtn: document.getElementById("settingsBtn"),
+  greetingText: document.getElementById("greetingText"),
+  welcomeContainer: document.getElementById("welcomeContainer"),
 };
 
 const CACHE_KEY = "cachedInbox";
 let currentMessages = [];
+
+// Dynamic greeting based on time of day
+function updateGreeting() {
+  const hour = new Date().getHours();
+  let greeting = "Good morning";
+  if (hour >= 12 && hour < 17) greeting = "Good afternoon";
+  else if (hour >= 17) greeting = "Good evening";
+  if (els.greetingText) els.greetingText.textContent = greeting;
+}
 
 function setConnStatus(state) {
   els.connStatus.textContent = state;
@@ -35,6 +49,7 @@ function formatSyncMeta(connector) {
 async function cacheInbox(messages) {
   await chrome.storage.local.set({ [CACHE_KEY]: messages });
 }
+
 async function loadCachedInbox() {
   const { [CACHE_KEY]: cached } = await chrome.storage.local.get(CACHE_KEY);
   return cached || [];
@@ -47,7 +62,7 @@ function renderMessages(messages) {
 
   for (const msg of messages) {
     const li = document.createElement("li");
-    li.className = "message-item" + (msg.metadata?.unread ? " unread" : "");
+    li.className = "message-item" + (msg.unread || msg.metadata?.unread ? " unread" : "");
     li.innerHTML = `
       <div class="subject">${escapeHtml(msg.subject || "(no subject)")}</div>
       <div class="sender">${escapeHtml(msg.sender || msg.from || "")}</div>
@@ -71,7 +86,7 @@ async function toggleSummary(li, msg) {
   li.classList.toggle("expanded");
   if (wasExpanded || box.dataset.loaded) return;
 
-  box.innerHTML = `<div class="loading-state">Summarizing…</div>`;
+  box.innerHTML = `<div class="loading-state" style="color: #4c6ef5;">Summarizing…</div>`;
   box.style.display = "block";
   try {
     const res = await window.Persona.api(
@@ -149,23 +164,6 @@ async function refreshConnectorAndInbox(forceRefresh) {
   }
 }
 
-async function handleSearch() {
-  const q = els.searchInput.value.trim();
-  if (!q) return refreshConnectorAndInbox(false);
-  try {
-    const result = await window.Persona.api("searchCommunications", q);
-    renderMessages(result?.communications || result || []);
-  } catch (e) {
-    // keep current list on failure
-  }
-}
-
-let searchDebounce;
-els.searchInput.addEventListener("input", () => {
-  clearTimeout(searchDebounce);
-  searchDebounce = setTimeout(handleSearch, 350);
-});
-
 els.refreshBtn.addEventListener("click", () => refreshConnectorAndInbox(true));
 els.reconnectBtn.addEventListener("click", async () => {
   await window.Persona.connectGmail();
@@ -189,22 +187,66 @@ function appendChat(role, text) {
   els.chatLog.scrollTop = els.chatLog.scrollHeight;
 }
 
-async function sendChat() {
-  const text = els.chatInput.value.trim();
+async function sendChat(textOverride) {
+  const text = textOverride || els.chatInput.value.trim();
   if (!text) return;
+  
+  // Hide the greeting / suggestion prompts upon first interaction
+  if (els.welcomeContainer) {
+    els.welcomeContainer.classList.add("hidden");
+  }
+
   appendChat("user", text);
-  els.chatInput.value = "";
+  if (!textOverride) els.chatInput.value = "";
+  
   try {
+    const selectedModel = els.modelSelect ? els.modelSelect.value : "llama-3.1-8b-instant";
+    console.log(`[PersonaAI] Querying with model: ${selectedModel}`);
+    
     const result = await window.Persona.api("sendChatMessage", text);
     appendChat("ai", result?.reply || "(no reply)");
   } catch (e) {
     appendChat("ai", "Something went wrong reaching the assistant.");
   }
 }
-els.chatSendBtn.addEventListener("click", sendChat);
+
+els.chatSendBtn.addEventListener("click", () => sendChat());
 els.chatInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendChat();
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
 });
+
+// Setup suggestion chips
+document.querySelectorAll(".suggestion-chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const prompt = chip.getAttribute("data-prompt");
+    sendChat(prompt);
+  });
+});
+
+// Topbar Control Handlers
+if (els.newChatBtn) {
+  els.newChatBtn.addEventListener("click", () => {
+    els.chatLog.innerHTML = "";
+    if (els.welcomeContainer) {
+      els.welcomeContainer.classList.remove("hidden");
+    }
+  });
+}
+
+if (els.historyBtn) {
+  els.historyBtn.addEventListener("click", () => {
+    alert("Chat History feature coming soon in version 1.1!");
+  });
+}
+
+if (els.settingsBtn) {
+  els.settingsBtn.addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+  });
+}
 
 async function showSignedIn() {
   els.signedOutView.classList.add("hidden");
@@ -214,6 +256,7 @@ async function showSignedIn() {
 }
 
 async function init() {
+  updateGreeting();
   if (!navigator.onLine) {
     els.offlineBanner.classList.remove("hidden");
   }
