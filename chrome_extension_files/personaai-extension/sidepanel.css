@@ -132,6 +132,39 @@ body {
 }
 .message-item.expanded .summary-box { display: block; }
 
+.structured-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sum-tldr {
+  font-size: 12px;
+  border-bottom: 1px dashed #c5cde9;
+  padding-bottom: 4px;
+}
+.sum-body {
+  font-style: italic;
+  color: #444a77;
+}
+.sum-section {
+  background: #fff;
+  border-left: 3px solid #2952e3;
+  padding: 4px 8px;
+  border-radius: 0 4px 4px 0;
+}
+.sum-section-title {
+  font-weight: 600;
+  font-size: 11px;
+  color: #2952e3;
+}
+.sum-section ul {
+  margin: 2px 0 0 14px;
+  padding: 0;
+}
+.sum-section li {
+  margin-bottom: 2px;
+}
+
 .chat-dock {
   border-top: 1px solid #e6e6e6;
   background: #fff;

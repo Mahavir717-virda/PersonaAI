@@ -133,11 +133,9 @@ export async function loginWithGoogle(idToken) {
   return json.data;
 }
 
-export async function connectPlatform(platform, authData = {}) {
-  return apiFetch(`/api/v1/connectors/${platform}/connect`, {
-    method: "POST",
-    body: { auth_data: authData },
-  });
+export async function getGmailAuthUrl(postAuthRedirectUri) {
+  const params = new URLSearchParams({ post_auth_redirect_uri: postAuthRedirectUri });
+  return apiFetch(`/api/v1/connectors/gmail/auth-url?${params.toString()}`);
 }
 
 export async function logout() {
@@ -178,3 +176,6 @@ export const getCommunication = (id) => apiFetch(`/api/v1/communications/${id}`)
 export const getExtensionContext = () => apiFetch("/api/v1/extension/context");
 export const sendChatMessage = (message) =>
   apiFetch("/api/v1/extension/chat", { method: "POST", body: { message } });
+export const getSummary = (thread) =>
+  apiFetch("/api/v1/brain/chat", { method: "POST", body: { thread, mode: "summarize", source: "gmail" } });
+

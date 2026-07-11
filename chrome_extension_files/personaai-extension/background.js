@@ -49,18 +49,51 @@ async function signInWithGoogle() {
 }
 
 async function connectGmail() {
-  const redirectedTo = await launchGoogleOAuthFlow({
-    responseType: "code",
-    scopes: ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"],
-  });
-
-  const url = new URL(redirectedTo);
-  const code = url.searchParams.get("code");
-  if (!code) {
-    throw new Error("no_auth_code_returned");
+  const postAuthRedirectUri = chrome.identity.getRedirectURL("gmail-oauth");
+  const authResponse = await api.getGmailAuthUrl(postAuthRedirectUri);
+  const authorizationUrl = authResponse?.json?.data?.authorization_url || authResponse?.data?.authorization_url;
+  if (!authorizationUrl) {
+    throw new Error("no_authorization_url_returned");
   }
 
-  return api.connectPlatform("gmail", { code });
+  const redirectedTo = await chrome.identity.launchWebAuthFlow({
+    url: authorizationUrl,
+    interactive: true,
+  });
+
+  if (!redirectedTo) {
+    throw new Error("gmail_oauth_cancelled");
+  }
+
+  const connectorState = await waitForGmailConnectorConnected();
+  return { redirectedTo, authorizationUrl, connectorState };
+}
+
+async function waitForGmailConnectorConnected() {
+  const deadline = Date.now() + 120000;
+  let lastState = "unknown";
+
+  while (Date.now() < deadline) {
+    const connectors = await api.listConnectors();
+    console.log("[PersonaAI] Gmail connector poll:", connectors);
+    const payload = connectors?.json?.data || connectors?.data || connectors?.json || connectors;
+    const activeConnectors = payload?.active || payload || [];
+    const gmail = activeConnectors.find((c) => c.platform === "gmail");
+    lastState = gmail?.state || gmail?.status || "unknown";
+    if (lastState === "connected") {
+      return lastState;
+    }
+    if (lastState === "authorizing" || lastState === "syncing" || lastState === "reconnect_required") {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      continue;
+    }
+    if (lastState === "error" || lastState === "failed") {
+      throw new Error(`gmail_connection_failed:${lastState}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  throw new Error(`gmail_connection_timed_out:${lastState}`);
 }
 
 async function runBackgroundSync() {

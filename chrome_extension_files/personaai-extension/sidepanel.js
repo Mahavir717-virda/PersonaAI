@@ -71,14 +71,48 @@ async function toggleSummary(li, msg) {
   li.classList.toggle("expanded");
   if (wasExpanded || box.dataset.loaded) return;
 
-  box.textContent = "Summarizing…";
+  box.innerHTML = `<div class="loading-state">Summarizing…</div>`;
   box.style.display = "block";
   try {
-    const reply = await window.Persona.api(
-      "sendChatMessage",
-      `Summarize this email briefly. Subject: "${msg.subject}". Body: ${msg.body || msg.metadata?.snippet || ""}`
+    const res = await window.Persona.api(
+      "getSummary",
+      `Subject: "${msg.subject}". Body: ${msg.body || msg.metadata?.snippet || ""}`
     );
-    box.textContent = reply?.reply || "No summary available.";
+    
+    const sum = res?.summary || res;
+    if (!sum) {
+      box.textContent = "No summary available.";
+      return;
+    }
+
+    // Deconstruct structured fields
+    const tldr = sum.tldr ? `<div class="sum-tldr"><strong>TLDR:</strong> ${escapeHtml(sum.tldr)}</div>` : "";
+    const summary = sum.summary ? `<div class="sum-body">${escapeHtml(sum.summary)}</div>` : "";
+    
+    const buildList = (title, items) => {
+      if (!items || items.length === 0) return "";
+      return `
+        <div class="sum-section">
+          <span class="sum-section-title">${title}:</span>
+          <ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </div>
+      `;
+    };
+
+    box.innerHTML = `
+      <div class="structured-summary-card">
+        ${tldr}
+        ${summary}
+        ${buildList("Action Items", sum.action_items)}
+        ${buildList("Deadlines", sum.deadlines)}
+        ${buildList("People Involved", sum.people)}
+        ${buildList("Projects", sum.projects)}
+        ${buildList("Meetings Scheduled", sum.meetings)}
+        ${buildList("Risks Identified", sum.risks)}
+        ${buildList("Follow-ups", sum.follow_ups)}
+        ${buildList("Questions Asked", sum.questions)}
+      </div>
+    `;
     box.dataset.loaded = "true";
   } catch (e) {
     box.textContent = "Couldn't summarize this email right now.";
